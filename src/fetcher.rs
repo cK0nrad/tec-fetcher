@@ -3,6 +3,7 @@ use crate::{
     logger,
     store::{Bus, Store},
 };
+
 use gtfs_structures::{Gtfs, GtfsReader};
 use protobuf::Message;
 use std::{collections::VecDeque, sync::Arc};
@@ -36,23 +37,23 @@ impl Fetcher {
     pub async fn fetch(&self) {
         logger::fine("FETCHER", "Fetching data");
         let mut bus_vec: VecDeque<Bus> = VecDeque::new();
-
         let url = format!("{}{}", self.api_url, self.api_key).to_string();
 
-        let body = match reqwest::get(url).await {
-            Ok(body) => body,
-            Err(e) => {
-                logger::critical("FETCHER", format!("Error fetching data: {}", e).as_str());
+        let resp = match ureq::get(&url).call() {
+            Ok(resp) => resp,
+            Err(_) => {
+                logger::critical("FETCHER", "Error fetching data");
                 return;
             }
         };
+        let mut reader = resp.into_reader();
+        let mut buffer = Vec::new();
+        if std::io::copy(&mut reader, &mut buffer).is_err() {
+            logger::critical("FETCHER", "Error reading response");
+            return;
+        }
 
-        let bytes: Vec<u8> = match body.bytes().await {
-            Ok(bytes) => bytes.to_vec(),
-            Err(_) => return,
-        };
-
-        let message = FeedMessage::parse_from_bytes(&bytes);
+        let message = FeedMessage::parse_from_bytes(&buffer);
         let message = match message {
             Ok(message) => message,
             Err(_) => return,
@@ -96,6 +97,6 @@ impl Fetcher {
             let bus = Bus::new(id, line, line_id, latitude, longitude, speed, 0);
             bus_vec.push_back(bus);
         }
-        self.store.refresh(bus_vec, bytes).await;
+        self.store.refresh(bus_vec, buffer).await;
     }
 }

@@ -60,7 +60,7 @@ impl Store {
 
         *self_raw = raw;
 
-        datas.clear();
+        *datas = VecDeque::new();
         for bus in bus {
             datas.push_back(bus);
         }

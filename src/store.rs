@@ -37,6 +37,7 @@ impl Bus {
 
 pub struct Store {
     datas: RwLock<VecDeque<Bus>>,
+    raw: RwLock<Vec<u8>>,
 }
 
 impl Default for Store {
@@ -49,11 +50,16 @@ impl Store {
     pub fn new() -> Self {
         Self {
             datas: RwLock::new(VecDeque::new()),
+            raw: RwLock::new(Vec::new()),
         }
     }
 
-    pub async fn refresh(&self, bus: VecDeque<Bus>) {
+    pub async fn refresh(&self, bus: VecDeque<Bus>, raw: Vec<u8>) {
         let mut datas = self.datas.write().unwrap();
+        let mut self_raw = self.raw.write().unwrap();
+
+        *self_raw = raw;
+
         datas.clear();
         for bus in bus {
             datas.push_back(bus);
@@ -63,5 +69,10 @@ impl Store {
     pub async fn retrieve_json(&self) -> String {
         let datas = self.datas.read().unwrap();
         serde_json::to_string(&*datas).unwrap_or("[]".to_string())
+    }
+
+    pub async fn raw_data(&self) -> Vec<u8> {
+        let raw = self.raw.read().unwrap();
+        raw.clone()
     }
 }

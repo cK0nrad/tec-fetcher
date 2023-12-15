@@ -1,5 +1,3 @@
-use std::{collections::VecDeque, sync::Arc};
-// use std::io::Read;
 use crate::{
     gtfs_realtime::FeedMessage,
     logger,
@@ -7,15 +5,17 @@ use crate::{
 };
 use gtfs_structures::{Gtfs, GtfsReader};
 use protobuf::Message;
+use std::{collections::VecDeque, sync::Arc};
 
 pub struct Fetcher {
     store: Arc<Store>,
     gtfs: Arc<Gtfs>,
     api_key: String,
+    api_url: String,
 }
 
 impl Fetcher {
-    pub fn new(store: Arc<Store>, api_key: String) -> Self {
+    pub fn new(store: Arc<Store>, api_url: String, api_key: String) -> Self {
         let gtfs = match GtfsReader::default()
             .read_stop_times(false)
             .read("src/gtfs")
@@ -27,6 +27,7 @@ impl Fetcher {
 
         Self {
             api_key,
+            api_url,
             gtfs: Arc::new(gtfs),
             store: store.clone(),
         }
@@ -35,28 +36,21 @@ impl Fetcher {
     pub async fn fetch(&self) {
         logger::fine("FETCHER", "Fetching data");
         let mut bus_vec: VecDeque<Bus> = VecDeque::new();
-        let url = format!(
-            "https://gtfsrt.tectime.be/proto/RealTime/vehicles?key={}",
-            self.api_key
-        ).to_string();
-        let body = reqwest::get(url);
 
-        let body = match body.await {
+        let url = format!("{}{}", self.api_url, self.api_key).to_string();
+
+        let body = match reqwest::get(url).await {
             Ok(body) => body,
             Err(e) => {
                 logger::critical("FETCHER", format!("Error fetching data: {}", e).as_str());
                 return;
-            },
+            }
         };
 
         let bytes: Vec<u8> = match body.bytes().await {
             Ok(bytes) => bytes.to_vec(),
             Err(_) => return,
         };
-
-        // let mut file = std::fs::File::open("./local/proto").unwrap();
-        // let mut bytes = Vec::new();
-        // file.read_to_end(&mut bytes).unwrap();
 
         let message = FeedMessage::parse_from_bytes(&bytes);
         let message = match message {
@@ -102,6 +96,6 @@ impl Fetcher {
             let bus = Bus::new(id, line, line_id, latitude, longitude, speed, 0);
             bus_vec.push_back(bus);
         }
-        self.store.refresh(bus_vec).await;
+        self.store.refresh(bus_vec, bytes).await;
     }
 }

@@ -12,13 +12,13 @@ pub mod store;
 async fn main() {
     dotenv().ok();
 
-    let (api_key, ip, port) = get_env();
+    let (api_url, api_key, ip, port) = get_env();
 
     let store = Arc::new(store::Store::new());
     let thread_safe = store.clone();
     tokio::spawn(async move {
         let thread_safe = thread_safe.clone();
-        let main_fetcher = fetcher::Fetcher::new(thread_safe.clone(), api_key);
+        let main_fetcher = fetcher::Fetcher::new(thread_safe.clone(), api_url, api_key);
         loop {
             main_fetcher.fetch().await;
             sleep(std::time::Duration::from_secs(5)).await;
@@ -28,7 +28,12 @@ async fn main() {
     api::init(ip, port, store.clone()).await;
 }
 
-fn get_env() -> (String, String, String) {
+fn get_env() -> (String, String, String, String) {
+    let api_url = match env::var("API_URL") {
+        Ok(key) => key,
+        Err(_) => panic!("No API_URL found in .env"),
+    };
+
     let api_key = match env::var("API_KEY") {
         Ok(key) => key,
         Err(_) => panic!("No API_KEY found in .env"),
@@ -44,5 +49,5 @@ fn get_env() -> (String, String, String) {
         Err(_) => panic!("No PORT found in .env"),
     };
 
-    (api_key, ip, port)
+    (api_url, api_key, ip, port)
 }

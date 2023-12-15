@@ -1,12 +1,13 @@
 use std::sync::Arc;
 
 use axum::{
+    body::Body,
     extract::{
         ws::{Message, WebSocket},
         State, WebSocketUpgrade,
     },
-    http::Method,
-    response::Response,
+    http::{Method, StatusCode},
+    response::{Response, IntoResponse},
     routing::get,
     Router,
 };
@@ -23,6 +24,7 @@ pub async fn init(ip: String, port: String, store: Arc<Store>) {
 
     let app = Router::new()
         .route("/", get(|| async { "Hello, World!" }))
+        .route("/raw", get(serve_raw))
         .route("/ws", get(websocket))
         .layer(cors)
         .with_state(store);
@@ -40,6 +42,17 @@ pub async fn init(ip: String, port: String, store: Arc<Store>) {
     logger::fine("WEBSERVER", format!("{}:{}", ip, port).as_str());
 
     axum::serve(listener, app).await.unwrap();
+}
+
+async fn serve_raw(State(app): State<Arc<Store>>) -> impl IntoResponse {
+    let datas = app.raw_data().await;
+    match Response::builder()
+        .header("Content-Type", "application/octet-stream")
+        .body(Body::from(datas))
+    {
+        Ok(response) => Ok(response),
+        Err(_) => Err((StatusCode::INTERNAL_SERVER_ERROR, "Error building response")),
+    }
 }
 
 async fn websocket(ws: WebSocketUpgrade, State(app): State<Arc<Store>>) -> Response {

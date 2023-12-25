@@ -17,14 +17,17 @@ pub struct Fetcher {
 
 impl Fetcher {
     pub fn new(store: Arc<Store>, api_url: String, api_key: String) -> Self {
+        logger::fine("FETCHER", "Loading GTFS");
         let gtfs = match GtfsReader::default()
             .read_stop_times(false)
-            .read("src/gtfs")
+            .read_shapes(false)
+            .read_from_path("src/gtfs")
         {
             Ok(gtfs) => gtfs,
-            Err(_) => panic!("Error loading gtfs"),
+            Err(_) => panic!("Error loading GTFS"),
         };
-        logger::fine("FETCHER", "Loaded gtfs");
+
+        logger::fine("FETCHER", "Loaded GTFS");
 
         Self {
             api_key,
@@ -41,11 +44,12 @@ impl Fetcher {
 
         let resp = match ureq::get(&url).call() {
             Ok(resp) => resp,
-            Err(_) => {
-                logger::critical("FETCHER", "Error fetching data");
+            Err(e) => {
+                logger::critical("FETCHER", &format!("Error fetching data: {}", e));
                 return;
             }
         };
+        
         let mut reader = resp.into_reader();
         let mut buffer = Vec::new();
         if std::io::copy(&mut reader, &mut buffer).is_err() {
@@ -94,9 +98,43 @@ impl Fetcher {
                 Some(speed) => speed,
                 None => continue,
             };
-            let bus = Bus::new(id, line, line_id, latitude, longitude, speed, 0);
+
+            let trip_id = match &vehicle.trip.trip_id {
+                Some(trip_id) => trip_id.clone(),
+                None => continue,
+            };
+
+            let current_stop = match vehicle.current_stop_sequence {
+                Some(current_stop) => current_stop,
+                None => continue,
+            };
+
+            let bus = Bus::new(
+                id,
+                line,
+                line_id,
+                trip_id,
+                latitude,
+                longitude,
+                speed,
+                0,
+                current_stop,
+            );
             bus_vec.push_back(bus);
         }
+
+        bus_vec.push_back(Bus::new(
+            String::from("5854"),
+            String::from("1"),
+            String::from("L0001-21568"),
+            String::from("41023071-L_PA_2023-23_SP_DI-Dimanche-32"),
+            50.630207,
+            5.568538,
+            27.0,
+            0,
+            3,
+        ));
+
         self.store.refresh(bus_vec, buffer).await;
     }
 }

@@ -7,10 +7,12 @@ pub struct Bus {
     id: String,
     line: String,
     line_id: String,
+    trip_id: String,
     latitude: f32,
     longitude: f32,
     speed: f32,
     last_update: u64,
+    current_stop: u32,
 }
 
 impl Bus {
@@ -18,19 +20,23 @@ impl Bus {
         id: String,
         line: String,
         line_id: String,
+        trip_id: String,
         latitude: f32,
         longitude: f32,
         speed: f32,
         last_update: u64,
+        current_stop: u32,
     ) -> Self {
         Self {
             id,
             line,
             line_id,
+            trip_id,
             latitude,
             longitude,
             speed,
             last_update,
+            current_stop
         }
     }
 }

@@ -7,6 +7,7 @@ mod api;
 mod fetcher;
 pub mod logger;
 pub mod store;
+pub mod quadtree;
 
 #[tokio::main(flavor = "multi_thread", worker_threads = 10)]
 async fn main() {

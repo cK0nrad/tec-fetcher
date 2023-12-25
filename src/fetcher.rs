@@ -49,7 +49,7 @@ impl Fetcher {
                 return;
             }
         };
-        
+
         let mut reader = resp.into_reader();
         let mut buffer = Vec::new();
         if std::io::copy(&mut reader, &mut buffer).is_err() {
@@ -122,19 +122,6 @@ impl Fetcher {
             );
             bus_vec.push_back(bus);
         }
-
-        bus_vec.push_back(Bus::new(
-            String::from("5854"),
-            String::from("1"),
-            String::from("L0001-21568"),
-            String::from("41023071-L_PA_2023-23_SP_DI-Dimanche-32"),
-            50.630207,
-            5.568538,
-            27.0,
-            0,
-            3,
-        ));
-
         self.store.refresh(bus_vec, buffer).await;
     }
 }

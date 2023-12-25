@@ -22,7 +22,7 @@ async fn main() {
         let main_fetcher = fetcher::Fetcher::new(thread_safe.clone(), api_url, api_key);
         loop {
             main_fetcher.fetch().await;
-            sleep(std::time::Duration::from_secs(1)).await;
+            sleep(std::time::Duration::from_secs(5)).await;
         }
     });
 

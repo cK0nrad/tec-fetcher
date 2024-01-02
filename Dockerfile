@@ -21,4 +21,8 @@ RUN cargo install --path .
 
 EXPOSE ${PORT}
 
+# for healthcheck
+RUN apt-get install -y wget
+
+
 CMD ["tec-fetcher"]

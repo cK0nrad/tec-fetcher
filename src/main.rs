@@ -6,16 +6,16 @@ use tokio::time::sleep;
 mod api;
 mod fetcher;
 pub mod logger;
-pub mod store;
 pub mod quadtree;
+pub mod store;
 
 #[tokio::main(flavor = "multi_thread", worker_threads = 10)]
 async fn main() {
     dotenv().ok();
 
-    let (api_url, api_key, ip, port) = get_env();
+    let (api_url, api_key, ip, port, secret) = get_env();
 
-    let store = Arc::new(store::Store::new());
+    let store = Arc::new(store::Store::new(&secret));
     let thread_safe = store.clone();
     tokio::spawn(async move {
         let thread_safe = thread_safe.clone();
@@ -29,7 +29,7 @@ async fn main() {
     api::init(ip, port, store.clone()).await;
 }
 
-fn get_env() -> (String, String, String, String) {
+fn get_env() -> (String, String, String, String, String) {
     let api_url = match env::var("API_URL") {
         Ok(key) => key,
         Err(_) => panic!("No API_URL found in .env"),
@@ -50,5 +50,10 @@ fn get_env() -> (String, String, String, String) {
         Err(_) => panic!("No PORT found in .env"),
     };
 
-    (api_url, api_key, ip, port)
+    let secret = match env::var("SECRET") {
+        Ok(key) => key,
+        Err(_) => panic!("No SECRET found in .env"),
+    };
+
+    (api_url, api_key, ip, port, secret)
 }

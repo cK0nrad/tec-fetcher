@@ -15,5 +15,6 @@ There's some environment variables you can set:
 - `API_URL`: the API URL to use
 - `IP`: the IP to listen on
 - `PORT`: the port to listen on (default: `3000`)
+- `SECRET`: the secret to use for refresh
 
 Those are mendatory to run the server. There's no default values.

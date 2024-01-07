@@ -4,35 +4,20 @@ use crate::{
     store::{Bus, Store},
 };
 
-use gtfs_structures::{Gtfs, GtfsReader};
 use protobuf::Message;
 use std::{collections::VecDeque, sync::Arc};
 
 pub struct Fetcher {
     store: Arc<Store>,
-    gtfs: Arc<Gtfs>,
     api_key: String,
     api_url: String,
 }
 
 impl Fetcher {
     pub fn new(store: Arc<Store>, api_url: String, api_key: String) -> Self {
-        logger::fine("FETCHER", "Loading GTFS");
-        let gtfs = match GtfsReader::default()
-            .read_stop_times(false)
-            .read_shapes(false)
-            .read_from_path("src/gtfs")
-        {
-            Ok(gtfs) => gtfs,
-            Err(_) => panic!("Error loading GTFS"),
-        };
-
-        logger::fine("FETCHER", "Loaded GTFS");
-
         Self {
             api_key,
             api_url,
-            gtfs: Arc::new(gtfs),
             store: store.clone(),
         }
     }
@@ -79,7 +64,9 @@ impl Fetcher {
                 None => continue,
             };
 
-            let line: String = match self.gtfs.get_route(&line_id) {
+            let gtfs = self.store.get_gtfs();
+            let gtfs = gtfs.read().await;
+            let line: String = match gtfs.get_route(&line_id) {
                 Ok(e) => e.short_name.clone(),
                 Err(_) => continue,
             };

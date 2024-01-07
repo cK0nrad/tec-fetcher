@@ -2,10 +2,9 @@ use std::{net::SocketAddr, sync::Arc};
 
 use crate::{logger, store::Store};
 use axum::{
-    body::Body,
     extract::{ConnectInfo, Query, State},
     http::StatusCode,
-    response::{IntoResponse, Response},
+    response::IntoResponse,
     Json,
 };
 use serde::Deserialize;
@@ -40,7 +39,7 @@ pub async fn refresh(
     };
 
     match app.refresh_gtfs(key).await {
-        Ok(_) => Ok(Response::new(Body::empty())),
+        Ok(_) => Ok((StatusCode::OK, Json(json!({"ok": "refreshed"})))),
         Err(e) => {
             logger::critical(
                 "REFRESH GTFS",

@@ -23,7 +23,7 @@ pub async fn refresh(
     if connect_info.ip().to_string() != "127.0.0.1" {
         logger::critical(
             "REFRESH GTFS",
-            &format!("Forbidden access from {}", connect_info.ip().to_string()),
+            &format!("Forbidden access from {}", connect_info.ip()),
         );
         return Err((StatusCode::FORBIDDEN, Json(json!({"error": "Forbidden"}))));
     }
@@ -43,7 +43,7 @@ pub async fn refresh(
         Err(e) => {
             logger::critical(
                 "REFRESH GTFS",
-                &format!("Forbidden access from {}", connect_info.ip().to_string()),
+                &format!("Forbidden access from {}", connect_info.ip()),
             );
             Err((StatusCode::INTERNAL_SERVER_ERROR, Json(json!({"error": e}))))
         }

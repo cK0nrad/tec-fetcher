@@ -101,7 +101,7 @@ impl<T: Clone + Debug> QuadTree<T> {
         }
 
         self.has_children = false;
-        return true;
+        true
     }
 
     pub fn divide(&mut self) {
@@ -186,7 +186,7 @@ impl<T: Clone + Debug> QuadTree<T> {
             }
         }
 
-        return true;
+        true
     }
 
     pub fn find_bbox(&self, extent: &Extent) -> Vec<&T> {
@@ -239,6 +239,6 @@ impl<T: Clone + Debug> QuadTree<T> {
         }
 
         println!("{:?}", self.value);
-        println!("");
+        println!();
     }
 }

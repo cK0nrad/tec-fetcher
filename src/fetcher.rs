@@ -5,18 +5,17 @@ use crate::{
 };
 
 use protobuf::Message;
+use rayon::prelude::*;
 use std::{collections::VecDeque, sync::Arc};
 
 pub struct Fetcher {
     store: Arc<Store>,
-    api_key: String,
     api_url: String,
 }
 
 impl Fetcher {
-    pub fn new(store: Arc<Store>, api_url: String, api_key: String) -> Self {
+    pub fn new(store: Arc<Store>, api_url: String) -> Self {
         Self {
-            api_key,
             api_url,
             store: store.clone(),
         }
@@ -24,8 +23,7 @@ impl Fetcher {
 
     pub async fn fetch(&self) {
         logger::fine("FETCHER", "Fetching data");
-        let mut bus_vec: VecDeque<Bus> = VecDeque::new();
-        let url = format!("{}{}", self.api_url, self.api_key).to_string();
+        let url = format!("{}", self.api_url).to_string();
 
         let resp = match ureq::get(&url).call() {
             Ok(resp) => resp,
@@ -41,74 +39,45 @@ impl Fetcher {
             logger::critical("FETCHER", "Error reading response");
             return;
         }
-
         let message = FeedMessage::parse_from_bytes(&buffer);
         let message = match message {
             Ok(message) => message,
             Err(_) => return,
         };
 
-        for entity in message.entity {
-            let id = match entity.id {
-                Some(id) => id,
-                None => continue,
-            };
+        let stop_time = std::time::Instant::now();
 
-            let vehicle = match entity.vehicle.0 {
-                Some(vehicle) => vehicle,
-                None => continue,
-            };
+        let buses = message
+            .entity
+            .par_iter()
+            .flat_map(|e| {
+                let store = self.store.clone();
+                crate::utils::real_time_data(e, &store)
+            })
+            .collect::<VecDeque<Bus>>();
 
-            let line_id: String = match &vehicle.trip.route_id {
-                Some(route_id) => route_id.clone(),
-                None => continue,
-            };
+        let remove = self
+            .store
+            .get_speeds()
+            .par_iter()
+            .flat_map(|res| {
+                let mut bus_speeds = res.value().write().unwrap();
+                bus_speeds.expire -= 1;
+                if bus_speeds.expire == 0 {
+                    Some(res.key().clone())
+                } else {
+                    None
+                }
+            })
+            .collect::<Vec<String>>();
 
-            let gtfs = self.store.get_gtfs();
-            let gtfs = gtfs.read().await;
-            let line: String = match gtfs.get_route(&line_id) {
-                Ok(e) => e.short_name.clone(),
-                Err(_) => continue,
-            };
+        remove.iter().for_each(|id| {
+            self.store.get_speeds().remove(id);
+        });
 
-            let latitude = match vehicle.position.latitude {
-                Some(latitude) => latitude,
-                None => continue,
-            };
+        let stop_time = stop_time.elapsed().as_millis();
+        println!("Stop time: {}ms {}", stop_time, buses.len());
 
-            let longitude = match vehicle.position.longitude {
-                Some(longitude) => longitude,
-                None => continue,
-            };
-
-            let speed = match vehicle.position.speed {
-                Some(speed) => speed,
-                None => continue,
-            };
-
-            let trip_id = match &vehicle.trip.trip_id {
-                Some(trip_id) => trip_id.clone(),
-                None => continue,
-            };
-
-            let current_stop = match vehicle.current_stop_sequence {
-                Some(current_stop) => current_stop,
-                None => continue,
-            };
-
-            let bus = Bus::new(
-                id,
-                line,
-                line_id,
-                trip_id,
-                latitude,
-                longitude,
-                speed,
-                0,
-                current_stop,
-            );
-            bus_vec.push_back(bus);
-        }
-        self.store.refresh(bus_vec, buffer).await;
+        self.store.refresh(buses, buffer).await;
     }
 }

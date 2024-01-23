@@ -8,18 +8,24 @@ mod fetcher;
 pub mod logger;
 pub mod quadtree;
 pub mod store;
+pub mod utils;
 
 #[tokio::main(flavor = "multi_thread", worker_threads = 10)]
 async fn main() {
     dotenv().ok();
 
-    let (api_url, api_key, ip, port, secret) = get_env();
+    let (api_url, ip, port, secret) = get_env();
 
     let store = Arc::new(store::Store::new(&secret));
+    match store.refresh_gtfs(&secret).await {
+        Ok(()) => {}
+        Err(e) => panic!("Error refreshing GTFS: {}", e),
+    };
+
     let thread_safe = store.clone();
     tokio::spawn(async move {
         let thread_safe = thread_safe.clone();
-        let main_fetcher = fetcher::Fetcher::new(thread_safe.clone(), api_url, api_key);
+        let main_fetcher = fetcher::Fetcher::new(thread_safe.clone(), api_url);
         loop {
             main_fetcher.fetch().await;
             sleep(std::time::Duration::from_secs(5)).await;
@@ -29,15 +35,10 @@ async fn main() {
     api::init(ip, port, store.clone()).await;
 }
 
-fn get_env() -> (String, String, String, String, String) {
+fn get_env() -> (String, String, String, String) {
     let api_url = match env::var("API_URL") {
         Ok(key) => key,
         Err(_) => panic!("No API_URL found in .env"),
-    };
-
-    let api_key = match env::var("API_KEY") {
-        Ok(key) => key,
-        Err(_) => panic!("No API_KEY found in .env"),
     };
 
     let ip = match env::var("IP") {
@@ -55,5 +56,5 @@ fn get_env() -> (String, String, String, String, String) {
         Err(_) => panic!("No SECRET found in .env"),
     };
 
-    (api_url, api_key, ip, port, secret)
+    (api_url, ip, port, secret)
 }

@@ -4,8 +4,8 @@ use crate::{logger, store::Store};
 use axum::{http::Method, routing::get, Router};
 use tower_http::cors::{Any, CorsLayer};
 
-
 mod gtfs;
+mod rt;
 mod static_serve;
 mod ws;
 
@@ -20,6 +20,7 @@ pub async fn init(ip: String, port: String, store: Arc<Store>) {
         .route("/raw", get(static_serve::serve))
         .route("/ws", get(ws::websocket))
         .route("/refresh_gtfs", get(gtfs::refresh))
+        .route("/avg_speed", get(rt::avg_speed))
         .layer(cors)
         .with_state(store);
 
@@ -35,5 +36,10 @@ pub async fn init(ip: String, port: String, store: Arc<Store>) {
     };
     logger::fine("WEBSERVER", format!("{}:{}", ip, port).as_str());
 
-    axum::serve(listener, app.into_make_service_with_connect_info::<SocketAddr>()).await.unwrap();
+    axum::serve(
+        listener,
+        app.into_make_service_with_connect_info::<SocketAddr>(),
+    )
+    .await
+    .unwrap();
 }

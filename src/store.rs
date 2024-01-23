@@ -155,7 +155,7 @@ impl Store {
             let gtfs = match GtfsReader::default()
                 .read_stop_times(true)
                 .read_shapes(true)
-                .read_from_path("src/gtfs")
+                .read_from_path("gtfs")
             {
                 Ok(gtfs) => gtfs,
                 Err(_) => panic!("Error loading GTFS"),

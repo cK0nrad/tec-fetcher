@@ -1,0 +1,26 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO transport_data (timestamp, id, line, line_id, trip_id, agency_id, latitude, longitude, speed, \n                 average_speed, next_stop, theorical_stop, delay)\n                 VALUES (TO_TIMESTAMP($1), $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)\n                    ON CONFLICT (timestamp, id) DO UPDATE SET \n                        line = EXCLUDED.line,\n                        line_id = EXCLUDED.line_id,\n                        trip_id = EXCLUDED.trip_id,\n                        agency_id = EXCLUDED.agency_id,\n                        latitude = EXCLUDED.latitude,\n                        longitude = EXCLUDED.longitude,\n                        speed = EXCLUDED.speed,\n                        average_speed = EXCLUDED.average_speed,\n                        next_stop = EXCLUDED.next_stop,\n                        theorical_stop = EXCLUDED.theorical_stop,\n                        delay = EXCLUDED.delay\n                 ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Float8",
+        "Text",
+        "Text",
+        "Text",
+        "Text",
+        "Text",
+        "Float8",
+        "Float8",
+        "Float4",
+        "Float4",
+        "Int4",
+        "Int4",
+        "Float8"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "62a9b226e6ef483b3a415754dabf718d4bc5210a9ed696ac44a4221596a2a578"
+}

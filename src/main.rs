@@ -65,7 +65,7 @@ fn get_env() -> (String, String, String, String, String) {
         Err(_) => panic!("No SECRET found in .env"),
     };
 
-    let database_url = match env::var("SECRET") {
+    let database_url = match env::var("DATABASE_URL") {
         Ok(key) => key,
         Err(_) => panic!("No DATABASE_URL found in .env"),
     };

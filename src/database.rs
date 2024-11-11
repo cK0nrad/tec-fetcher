@@ -1,6 +1,6 @@
 // db.rs
 
-use sqlx::{PgPool, Postgres, Result};
+use sqlx::{PgPool, Result};
 use std::{collections::VecDeque, sync::Arc};
 
 use crate::store::Bus;

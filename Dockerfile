@@ -7,6 +7,7 @@ RUN cargo install sqlx-cli --no-default-features --features postgres
 
 WORKDIR /usr/src/app
 COPY . .
+RUN chmod +x ./docker_startup.sh
 RUN cargo install --path .
 
 EXPOSE ${PORT}

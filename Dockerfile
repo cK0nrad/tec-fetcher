@@ -5,6 +5,7 @@ RUN apt-get install -y wget
 RUN apt-get update && apt-get upgrade -y && apt-get install -y openssl libssl-dev pkg-config protobuf-compiler
 
 WORKDIR /usr/src/app
+COPY .sqlx .sqlx
 COPY Cargo.toml .
 COPY Cargo.lock .
 COPY build.rs .

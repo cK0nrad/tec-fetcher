@@ -1,4 +1,4 @@
-FROM rust:1.82.0-alpine3.20
+FROM rust:1.82.0-slim
 
 # Path: /usr/src/app
 WORKDIR /usr/src/app

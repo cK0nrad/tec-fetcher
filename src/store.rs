@@ -1,3 +1,6 @@
+use base64::{engine::general_purpose, Engine as _};
+use flate2::{write::GzEncoder, Compression};
+use std::io::Write;
 use std::{
     collections::VecDeque,
     sync::{Arc, RwLock},
@@ -7,6 +10,7 @@ use dashmap::DashMap;
 use gtfs_structures::{Gtfs, GtfsReader};
 use serde::Serialize;
 
+use crate::database::Db;
 use crate::logger;
 
 pub struct BusSpeed {
@@ -14,31 +18,35 @@ pub struct BusSpeed {
     pub speeds: VecDeque<f32>,
     pub speed_average: f32,
 }
-#[derive(Serialize)]
+#[derive(Serialize, Debug)]
 pub struct Bus {
-    id: String,
-    line: String,
-    line_id: String,
-    trip_id: String,
-    latitude: f32,
-    longitude: f32,
-    speed: f32,
-    average_speed: f32,
-    average_count: usize,
-    next_stop: usize,
-    theorical_stop: usize,
-    remaining_distance: f64,
-    delay: f64,
-    is_out: bool,
+    pub timestamp: u64,
+    pub id: String,
+    pub line: String,
+    pub line_id: String,
+    pub trip_id: String,
+    pub agency_id: String,
+    pub latitude: f32,
+    pub longitude: f32,
+    pub speed: f32,
+    pub average_speed: f32,
+    pub average_count: usize,
+    pub next_stop: usize,
+    pub theorical_stop: usize,
+    pub remaining_distance: f64,
+    pub delay: f64,
+    pub is_out: bool,
 }
 
 impl Default for Bus {
     fn default() -> Self {
         Self {
+            timestamp: 0,
             id: "?".to_string(),
             line: "?".to_string(),
             line_id: "?".to_string(),
             trip_id: "?".to_string(),
+            agency_id: "?".to_string(),
             latitude: 0.0,
             longitude: 0.0,
             speed: 0.0,
@@ -54,6 +62,14 @@ impl Default for Bus {
 }
 
 impl Bus {
+    pub fn set_agency_id(&mut self, agency_id: &str) {
+        self.agency_id = agency_id.to_string();
+    }
+
+    pub fn set_timestamp(&mut self, timestamp: u64) {
+        self.timestamp = timestamp;
+    }
+
     pub fn set_position(&mut self, latitude: f32, longitude: f32) {
         self.latitude = latitude;
         self.longitude = longitude;
@@ -109,27 +125,23 @@ impl Bus {
 }
 
 pub struct Store {
-    datas: RwLock<VecDeque<Bus>>,
     buses_speed: Arc<DashMap<String, Arc<RwLock<BusSpeed>>>>, //meant to be precise not cpu cache friendly
     raw: RwLock<Vec<u8>>,
     gtfs: Arc<RwLock<Gtfs>>,
     secret: String,
-}
-
-impl Default for Store {
-    fn default() -> Self {
-        Self::new("")
-    }
+    json: RwLock<Vec<u8>>,
+    db: Arc<Db>,
 }
 
 impl Store {
-    pub fn new(secret: &str) -> Self {
+    pub fn new(secret: &str, db: Arc<Db>) -> Self {
         Self {
-            datas: RwLock::new(VecDeque::new()),
             raw: RwLock::new(Vec::new()),
             gtfs: Arc::new(RwLock::new(Gtfs::default())),
             secret: secret.to_string(),
             buses_speed: Arc::new(DashMap::new()),
+            json: RwLock::new(compress_string("[]").unwrap()),
+            db,
         }
     }
 
@@ -172,29 +184,44 @@ impl Store {
         Ok(())
     }
 
-    pub async fn refresh(&self, bus: VecDeque<Bus>, raw: Vec<u8>) {
-        let mut datas = self.datas.write().unwrap();
+    pub async fn refresh_raw(&self, raw: Vec<u8>) {
         let mut self_raw = self.raw.write().unwrap();
-
         *self_raw = raw;
-
-        *datas = VecDeque::new();
-        for bus in bus {
-            datas.push_back(bus);
-        }
     }
 
-    pub async fn retrieve_json(&self) -> String {
-        let datas = self.datas.read().unwrap();
-        serde_json::to_string(&*datas).unwrap_or("[]".to_string())
+    pub async fn refresh(&self, buses: &VecDeque<Bus>) {
+        let mut json_current = self.json.write().unwrap();
+        let json_message = serde_json::to_string(buses).unwrap_or("[]".to_string());
+        let json_message = general_purpose::STANDARD.encode(&json_message);
+        let json_message = match compress_string(&json_message) {
+            Ok(json_message) => json_message,
+            Err(e) => {
+                println!("Error compressing message: {}", e);
+                return;
+            }
+        };
+        *json_current = json_message;
+    }
+
+    pub async fn refresh_db(&self, buses: &VecDeque<Bus>) {
+        self.db.insert_buses(buses).await.unwrap();
+    }
+
+    pub async fn retrieve_json(&self) -> Vec<u8> {
+        self.json.read().unwrap().clone()
     }
 
     pub async fn raw_data(&self) -> Vec<u8> {
-        let raw = self.raw.read().unwrap();
-        raw.clone()
+        self.raw.read().unwrap().clone()
     }
 
     pub fn get_speeds(&self) -> Arc<DashMap<String, Arc<RwLock<BusSpeed>>>> {
         self.buses_speed.clone()
     }
+}
+
+fn compress_string(input: &str) -> Result<Vec<u8>, std::io::Error> {
+    let mut encoder = GzEncoder::new(Vec::new(), Compression::best());
+    encoder.write_all(input.as_bytes())?;
+    encoder.finish()
 }

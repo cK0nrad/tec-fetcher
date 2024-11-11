@@ -1,4 +1,4 @@
-FROM rust:1.74.1-slim
+FROM rust:1.82.0-alpine3.20
 
 # Path: /usr/src/app
 WORKDIR /usr/src/app
@@ -13,6 +13,8 @@ COPY build.rs .
 
 # Path: /usr/src/app/src
 COPY src src
+
+ENV SQLX_OFFLINE true
 
 RUN apt-get update && apt-get upgrade -y && apt-get install -y openssl libssl-dev pkg-config protobuf-compiler
 

@@ -1,0 +1,28 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO transport_data (timestamp, id, line, line_id, trip_id, latitude, longitude, speed, \n                 average_speed, average_count, next_stop, theorical_stop, remaining_distance, delay, is_out)\n                 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int8",
+        "Varchar",
+        "Varchar",
+        "Varchar",
+        "Varchar",
+        "Float8",
+        "Float8",
+        "Float4",
+        "Float4",
+        "Int4",
+        "Int4",
+        "Int4",
+        "Float8",
+        "Float8",
+        "Bool"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "12c49096ad4981e33cf026af3a1743815e3c4c0951d27c7610bc92aa57a5caba"
+}

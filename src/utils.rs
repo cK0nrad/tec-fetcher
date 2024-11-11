@@ -4,9 +4,10 @@ const EXPIRE: usize = 10;
 use std::{
     collections::VecDeque,
     sync::{Arc, RwLock},
+    time::{SystemTime, UNIX_EPOCH},
 };
 
-use crate::store::BusSpeed;
+use crate::{logger, store::BusSpeed};
 use chrono::Timelike;
 use gtfs_structures::{Gtfs, Shape, StopTime};
 
@@ -14,7 +15,6 @@ use crate::{
     gtfs_realtime::FeedEntity,
     store::{Bus, Store},
 };
-
 
 pub fn earth_distance(a: (f64, f64), b: (f64, f64)) -> f64 {
     let (lat1, lon1) = a;
@@ -42,7 +42,15 @@ pub fn real_time_data(entity: &FeedEntity, store: &Store) -> Option<Bus> {
     let longitude = position.longitude?;
     let id = entity.id.clone()?;
 
+    let timestamp: u64 = vehicle.timestamp.or_else(|| {
+        SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .ok()
+            .map(|e| e.as_secs())
+    })?;
+
     let mut bus = Bus::default();
+    bus.set_timestamp(timestamp);
     bus.set_id(&id);
     bus.set_position(latitude, longitude);
 
@@ -51,8 +59,9 @@ pub fn real_time_data(entity: &FeedEntity, store: &Store) -> Option<Bus> {
             bus.set_speed(e);
             e
         }
-        None => return Some(bus),
+        None => 0.0,
     };
+
     let binding = store.get_gtfs();
     let gtfs = match binding.read() {
         Ok(e) => e,
@@ -69,11 +78,14 @@ pub fn real_time_data(entity: &FeedEntity, store: &Store) -> Option<Bus> {
 
     let line = get_line(&gtfs, line_id.to_string());
     match line {
-        Some(e) => {
-            bus.set_line(&e);
-            e
+        Some((line, agency)) => {
+            bus.set_line(&line);
+            bus.set_agency_id(&agency);
         }
-        None => return Some(bus),
+        _ => {
+            logger::warn("UTILS", &format!("No line (or agency) found: {}", line_id));
+            return Some(bus);
+        }
     };
 
     let trip_id = match &vehicle.trip.trip_id {
@@ -87,14 +99,25 @@ pub fn real_time_data(entity: &FeedEntity, store: &Store) -> Option<Bus> {
     let trip = get_trip(&gtfs, trip_id.to_string());
     let trip = match trip {
         Some(e) => e,
-        None => return Some(bus),
+        None => {
+            logger::warn("UTILS", &format!("No trip found: {}", trip_id));
+            return Some(bus);
+        }
     };
 
     let shape_id = trip.shape_id.clone();
-    let shape = get_shape(&gtfs, shape_id);
-    let shape = match shape {
+    let shape_id = match shape_id {
         Some(e) => e,
         None => return Some(bus),
+    };
+
+    let shape = get_shape(&gtfs, &shape_id);
+    let shape = match shape {
+        Some(e) => e,
+        None => {
+            logger::warn("UTILS", &format!("No shape found: {}", shape_id));
+            return Some(bus);
+        }
     };
 
     let bus_speeds: Arc<RwLock<BusSpeed>> = get_bus_speed(store, &id);
@@ -152,22 +175,20 @@ pub fn real_time_data(entity: &FeedEntity, store: &Store) -> Option<Bus> {
     Some(bus)
 }
 
-fn get_line(gtfs: &Gtfs, line_id: String) -> Option<String> {
-    gtfs.routes
-        .get(&line_id)
-        .map(|route| route.short_name.clone())
+fn get_line(gtfs: &Gtfs, line_id: String) -> Option<(String, String)> {
+    let route = gtfs.routes.get(&line_id)?;
+    match (route.short_name.clone(), route.agency_id.clone()) {
+        (Some(short_name), Some(agency_id)) => Some((short_name, agency_id)),
+        _ => None,
+    }
 }
 
 fn get_trip<'a>(gtfs: &'a Gtfs, trip_id: String) -> Option<&'a gtfs_structures::Trip> {
     gtfs.trips.get(&trip_id)
 }
 
-fn get_shape<'a>(
-    gtfs: &'a Gtfs,
-    shape_id: Option<String>,
-) -> Option<&'a Vec<gtfs_structures::Shape>> {
-    let shape_id = shape_id?;
-    gtfs.shapes.get(&shape_id)
+fn get_shape<'a>(gtfs: &'a Gtfs, shape_id: &String) -> Option<&'a Vec<gtfs_structures::Shape>> {
+    gtfs.shapes.get(shape_id)
 }
 
 fn make_cache(stops: &Vec<StopTime>, shape: &Vec<Shape>) -> (Vec<usize>, Vec<usize>) {

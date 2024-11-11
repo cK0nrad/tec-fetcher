@@ -46,7 +46,6 @@ impl Fetcher {
         };
 
         let stop_time = std::time::Instant::now();
-
         let buses = message
             .entity
             .par_iter()
@@ -76,8 +75,17 @@ impl Fetcher {
         });
 
         let stop_time = stop_time.elapsed().as_millis();
-        println!("Stop time: {}ms {}", stop_time, buses.len());
+        logger::fine(
+            "FETCHER",
+            &format!(
+                "Refresh time: {}ms, bus length: {:#?}",
+                stop_time,
+                buses.len()
+            ),
+        );
 
-        self.store.refresh(buses, buffer).await;
+        self.store.refresh_raw(buffer).await;
+        self.store.refresh(&buses).await;
+        self.store.refresh_db(&buses).await;
     }
 }

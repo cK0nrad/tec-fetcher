@@ -1,0 +1,149 @@
+version: "3"
+services:
+  postgis-db:
+    image: postgis/postgis
+    volumes:
+      - ./postgres/data/:/var/lib/postgresql/data
+    environment:
+      - POSTGRES_PASSWORD=postgres
+    restart: always
+    command: -c shared_buffers=8GB -c maintenance_work_mem=2GB -c work_mem=1GB -c effective_cache_size=12GB
+    healthcheck:
+      test: "PGPASSWORD=postgres pg_isready -h 127.0.0.1 -U postgres -d postgres"
+
+  timescale:
+    image: timescale/timescaledb-ha:pg16
+    environment:
+      POSTGRES_PASSWORD: password
+      PGDATA: /var/lib/postgresql/data/pgdata
+    volumes:
+      - ./bus_db_cache/:/home/postgres/pgdata/data
+    healthcheck:
+      test: "PGPASSWORD=password pg_isready -h 127.0.0.1 -U postgres -d postgres"
+    restart: always
+
+  map-server:
+    image: map-server
+    volumes:
+      - ./mapcache/:/var/cache/renderd/
+    restart: always
+    depends_on:
+      postgis-db:
+        condition: service_healthy
+    healthcheck:
+      test: "wget --no-verbose --tries=1 --spider http://localhost:80 || exit 1"
+      interval: 30s
+      timeout: 2s
+      retries: 5
+
+  blog:
+    image: blog
+    restart: always
+    healthcheck:
+      test: "wget --no-verbose --tries=1 --spider  http://localhost:3000 || exit 1"
+      interval: 30s
+      timeout: 2s
+      retries: 5
+
+  nginx:
+    image: nginx:latest
+    ports:
+      - 80:80
+      - 443:443
+    restart: always
+    volumes:
+      - ./conf.d/:/etc/nginx/conf.d/
+      - /etc/letsencrypt:/etc/letsencrypt
+    depends_on:
+      map-server:
+        condition: service_healthy
+      blog:
+        condition: service_healthy
+      tec-ui:
+        condition: service_healthy
+      tec-gtfs:
+        condition: service_healthy
+      tec-fetcher:
+        condition: service_healthy
+      website-dev:
+        condition: service_healthy
+
+  tec-ui:
+    restart: always
+    image: tec-ui
+    healthcheck:
+      test: "wget --no-verbose --tries=1 --spider http://localhost:3000 || exit 1"
+      interval: 30s
+      timeout: 5s
+      retries: 5
+
+  tec-gtfs:
+    restart: always
+    image: tec-gtfs
+    volumes:
+      - ./gtfs/:/usr/src/app/gtfs/
+    healthcheck:
+      test: "wget --no-verbose --tries=1 --spider http://localhost:3006 || exit 1"
+      interval: 30s
+      timeout: 10s
+      retries: 5
+    environment:
+      - SECRET=${SECRET}
+
+  tec-fetcher:
+    restart: always
+    image: tec-fetcher
+    volumes:
+      - ./gtfs/:/usr/src/app/gtfs/
+    environment:
+      - API_URL=${API_URL}
+      - IP=0.0.0.0
+      - PORT=3000
+      - SECRET=${SECRET}
+      - TZ=Europe/Brussels
+    depends_on:
+      timescale:
+        condition: service_healthy
+
+    healthcheck:
+      test: "wget --no-verbose --tries=1 --spider http://localhost:3000 || exit 1"
+      interval: 30s
+      timeout: 2s
+      retries: 5
+
+  website-dev:
+    restart: always
+    image: website
+    healthcheck:
+      test: "wget --no-verbose --tries=1 --spider http://localhost:3000 || exit 1"
+      interval: 30s
+      timeout: 2s
+      retries: 5
+
+  feedback:
+    restart: always
+    image: tec-ui-feedback
+    healthcheck:
+      test: "wget --no-verbose --tries=1 --spider http://localhost:3000 || exit 1"
+      interval: 30s
+      timeout: 2s
+      retries: 5
+    volumes:
+      - ./csv/suggestions.csv:/usr/src/app/suggestions.csv
+      - ./csv/survey.csv:/usr/src/app/survey.csv
+  grafana:
+    image: grafana/grafana-enterprise
+    container_name: grafana
+    restart: unless-stopped
+    user: '0'
+    volumes:
+      - ./data/grafana_data:/var/lib/grafana
+
+  pgadmin:
+    image: dpage/pgadmin4
+    restart: always
+    environment:
+      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_DEFAULT_EMAIL}
+      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_DEFAULT_PASSWORD}
+    volumes:
+      - ./pgadmin-data:/var/lib/pgadmin

@@ -9,7 +9,6 @@ use axum::{
     },
     response::Response,
 };
-use tokio::time::sleep;
 
 pub async fn websocket(ws: WebSocketUpgrade, State(app): State<Arc<Store>>) -> Response {
     ws.on_upgrade(move |socket| async {

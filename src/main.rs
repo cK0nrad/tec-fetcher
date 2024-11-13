@@ -36,8 +36,15 @@ async fn main() {
         let thread_safe = thread_safe.clone();
         let main_fetcher = fetcher::Fetcher::new(thread_safe.clone(), api_url);
         loop {
+            let start = std::time::Instant::now();
             main_fetcher.fetch().await;
-            sleep(std::time::Duration::from_secs(5)).await;
+            let elapsed = start.elapsed();
+
+            if elapsed.as_secs() < 5 {
+                sleep(std::time::Duration::from_secs(5) - elapsed).await;
+            } else {
+                sleep(std::time::Duration::from_secs(1)).await;
+            }
         }
     });
 

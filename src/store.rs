@@ -204,7 +204,12 @@ impl Store {
     }
 
     pub async fn refresh_db(&self, buses: &VecDeque<Bus>) {
-        self.db.insert_buses(buses).await.unwrap();
+        match self.db.insert_buses(buses).await {
+            Ok(_) => {}
+            Err(e) => {
+                logger::critical("DATABASE", &format!("Error inserting buses: {}", e));
+            }
+        };
     }
 
     pub async fn retrieve_json(&self) -> Vec<u8> {

@@ -1,6 +1,6 @@
 // db.rs
 
-use sqlx::{PgPool, Result};
+use sqlx::{postgres::PgPoolOptions, PgPool, Result};
 use std::{collections::VecDeque, sync::Arc};
 
 use crate::store::Bus;
@@ -12,7 +12,13 @@ pub struct Db {
 
 impl Db {
     pub async fn new(database_url: &str) -> Result<Self> {
-        let pool = PgPool::connect(database_url).await?;
+        let pool = PgPoolOptions::new()
+        .max_connections(5) // maximum number of connections in the pool
+        .min_connections(1) // minimum number of idle connections
+        .max_lifetime(Some(std::time::Duration::from_secs(1800))) // close connections after 30 minutes
+        .idle_timeout(Some(std::time::Duration::from_secs(600))) // close idle connections after 10 minutes
+        .acquire_timeout(std::time::Duration::from_secs(3))
+        .connect(database_url).await?;
         Ok(Self {
             pool: Arc::new(pool),
         })

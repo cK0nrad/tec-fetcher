@@ -17,7 +17,7 @@ impl Db {
         .min_connections(1) // minimum number of idle connections
         .max_lifetime(Some(std::time::Duration::from_secs(1800))) // close connections after 30 minutes
         .idle_timeout(Some(std::time::Duration::from_secs(600))) // close idle connections after 10 minutes
-        .acquire_timeout(std::time::Duration::from_secs(3))
+        .acquire_timeout(std::time::Duration::from_secs(30))
         .connect(database_url).await?;
         Ok(Self {
             pool: Arc::new(pool),

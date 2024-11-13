@@ -1,4 +1,5 @@
 use std::sync::Arc;
+use tokio::time::{interval, Duration};
 
 use crate::store::Store;
 use axum::{
@@ -17,15 +18,14 @@ pub async fn websocket(ws: WebSocketUpgrade, State(app): State<Arc<Store>>) -> R
 }
 
 async fn handle_socket(mut socket: WebSocket, store: Arc<Store>) {
+    let mut interval = interval(Duration::from_secs(5));
     loop {
+        interval.tick().await;
         let datas = store.retrieve_json().await;
         let message = Message::Binary(datas);
 
         if socket.send(message).await.is_err() {
-            println!("Error sending message");
             return;
         }
-
-        sleep(std::time::Duration::from_secs(5)).await
     }
 }

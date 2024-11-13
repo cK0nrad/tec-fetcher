@@ -3,7 +3,7 @@ use database::Db;
 use dotenv::dotenv;
 use std::env;
 use std::sync::Arc;
-use tokio::time::sleep;
+use tokio::time::{interval, Duration};
 
 mod api;
 mod database;
@@ -33,18 +33,13 @@ async fn main() {
 
     let thread_safe = store.clone();
     tokio::spawn(async move {
+        let mut interval = interval(Duration::from_secs(5));
+        interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
         let thread_safe = thread_safe.clone();
         let main_fetcher = fetcher::Fetcher::new(thread_safe.clone(), api_url);
         loop {
-            let start = std::time::Instant::now();
+            interval.tick().await;
             main_fetcher.fetch().await;
-            let elapsed = start.elapsed();
-
-            if elapsed.as_secs() < 5 {
-                sleep(std::time::Duration::from_secs(5) - elapsed).await;
-            } else {
-                sleep(std::time::Duration::from_secs(1)).await;
-            }
         }
     });
 
